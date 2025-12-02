@@ -39,7 +39,7 @@ const Projects: React.FC = () => {
 
         <div className="space-y-12">
             {filteredProjects.map((project) => (
-                <div key={project.id} className="bg-white border border-gray-100 rounded-sm p-6 md:p-8 shadow-sm hover:shadow-md transition-shadow duration-300">
+                <div key={project.id} className="bg-white border border-gray-100 rounded-sm p-6 md:p-8 shadow-sm hover:shadow-xl hover:scale-[1.02] transition-all duration-300 transform">
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
                         <div>
                             <div className="flex flex-wrap gap-2 mb-3">

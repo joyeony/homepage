@@ -1,12 +1,14 @@
 import React, { useState, useMemo } from 'react';
 import SectionHeader from '../components/SectionHeader';
 import { DASHBOARD_SCENARIOS } from '../constants';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell, PieChart, Pie, Legend, LineChart, Line, ComposedChart } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Cell, PieChart, Pie, Legend, LineChart, Line, ComposedChart, ScatterChart, Scatter, ZAxis } from 'recharts';
 
 type DashboardType = 'pmo' | 'ops' | 'retention' | 'scm' | 'marketing';
 
 const Dashboards: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<DashboardType>('pmo');
+  const activeTabState = useState<DashboardType>('pmo');
+  const activeTab = activeTabState[0];
+  const setActiveTab = activeTabState[1];
   const [dateRange, setDateRange] = useState('Last 30 Days');
   const [region, setRegion] = useState('Global');
 
@@ -22,49 +24,46 @@ const Dashboards: React.FC = () => {
 
   // --- DATA SIMULATION LOGIC ---
   // This useMemo dynamically adjusts the mock data based on the selected filters (Date Range & Region).
-  // It gives the "feel" of a real dashboard without needing a backend.
   const currentScenario = useMemo(() => {
     // 1. Create a deep copy of the base data to avoid mutating the constants
     const baseData = JSON.parse(JSON.stringify(DASHBOARD_SCENARIOS[activeTab]));
 
     // 2. Define Multipliers based on selection
     let volumeMultiplier = 1;
-    let rateModifier = 1.0; // Multiplier for rates (e.g., APAC might have slightly different conversion)
+    let rateModifier = 1.0; 
 
-    // Date Logic (Counts accumulate over time)
+    // Date Logic
     if (dateRange === 'Last 30 Days') volumeMultiplier *= 1;
-    else if (dateRange === 'Last Quarter') volumeMultiplier *= 3.2; // Approx 3 months + growth
-    else if (dateRange === 'YTD') volumeMultiplier *= 9.5; // Approx 9-10 months
+    else if (dateRange === 'Last Quarter') volumeMultiplier *= 3.2; 
+    else if (dateRange === 'YTD') volumeMultiplier *= 9.5; 
 
-    // Region Logic (Splitting the global pie)
+    // Region Logic
     if (region === 'Global') {
         volumeMultiplier *= 1;
         rateModifier = 1.0;
     } else if (region === 'North America') {
-        volumeMultiplier *= 0.45; // 45% of vol
-        rateModifier = 1.02; // Slightly higher efficiency
+        volumeMultiplier *= 0.45; 
+        rateModifier = 1.02; 
     } else if (region === 'APAC') {
-        volumeMultiplier *= 0.30; // 30% of vol
-        rateModifier = 0.98; // Slightly lower
+        volumeMultiplier *= 0.30; 
+        rateModifier = 0.98; 
     } else if (region === 'EMEA') {
-        volumeMultiplier *= 0.25; // 25% of vol
+        volumeMultiplier *= 0.25; 
         rateModifier = 1.01;
     }
 
     // 3. Helper function to adjust specific numbers
     const adjustNumber = (val: number, isRate: boolean) => {
-        if (isRate) return Number((val * rateModifier).toFixed(1)); // Rates change slightly by region
-        return Math.round(val * volumeMultiplier); // Counts scale heavily by date/region
+        if (isRate) return Number((val * rateModifier).toFixed(1)); 
+        return Math.round(val * volumeMultiplier); 
     };
 
-    // 4. Adjust KPIs (Parsing strings like "+275%" or "$14.2")
+    // 4. Adjust KPIs
     baseData.kpi = baseData.kpi.map((k: any) => {
-        const rawString = k.value.replace(/[$,%]/g, ''); // Remove symbols
+        const rawString = k.value.replace(/[$,%]/g, ''); 
         const val = parseFloat(rawString);
         
         if (!isNaN(val)) {
-            // Check if it's a rate (Percentage, Avg, Score) or Volume (Count, Total)
-            // Heuristic: If label has "Rate", "Score", "Accuracy", "Compliance" OR value has "%" -> It's a Rate.
             const isRate = k.label.includes('Rate') || k.label.includes('Score') || k.label.includes('Compliance') || k.label.includes('Acc') || k.value.includes('%');
             const isCurrency = k.value.includes('$');
             const isPercent = k.value.includes('%');
@@ -79,9 +78,15 @@ const Dashboards: React.FC = () => {
         return k;
     });
 
-    // 5. Adjust Chart Data (Recursively find numbers and scale them)
-    // We explicitly target the specific arrays known for each scenario to be safe
-    const arraysToScale = ['priorityVsEffort', 'orgRequest', 'throughputTrend', 'churnTrend', 'inventory', 'leadTime', 'funnel', 'abTest'];
+    // 5. Adjust Chart Data 
+    // We explicitly target the specific arrays known for each scenario
+    const arraysToScale = [
+        'priorityVsEffort', 'orgRequest', 'projectStatus', 'effortImpact', 
+        'throughputTrend', 'quality', 'processingDist', 'regionalCompliance',
+        'churnTrend', 'segments', 'cohorts', 'ltvSource',
+        'inventory', 'leadTime', 'supplierScore', 'stockoutRisk',
+        'funnel', 'abTest', 'channelRoi', 'touchpoints'
+    ];
     
     arraysToScale.forEach(key => {
         if (baseData[key]) {
@@ -89,11 +94,10 @@ const Dashboards: React.FC = () => {
                  Object.keys(item).forEach(prop => {
                      if (typeof item[prop] === 'number') {
                          // Heuristic for Chart Properties
-                         // Rates: 'rate', 'conv', 'compliance', 'score', 'percent', 'prediction'
                          const lowerProp = prop.toLowerCase();
-                         const isRate = lowerProp.includes('rate') || lowerProp.includes('conv') || lowerProp.includes('score') || lowerProp.includes('prediction') || lowerProp.includes('days');
+                         const isRate = lowerProp.includes('rate') || lowerProp.includes('conv') || lowerProp.includes('score') || lowerProp.includes('prediction') || lowerProp.includes('days') || lowerProp.includes('compliance') || lowerProp.includes('retention') || lowerProp.includes('risk') || lowerProp.includes('roi');
                          
-                         // Special case: 'days' (Lead Time) usually doesn't scale with DateRange, only Region
+                         // Special case: 'days' usually doesn't scale with DateRange, only Region
                          if (lowerProp.includes('days')) {
                             item[prop] = Math.round(item[prop] * (region === 'Global' ? 1 : rateModifier)); 
                          } else {
@@ -155,7 +159,6 @@ const Dashboards: React.FC = () => {
               <div className="bg-white p-6 rounded-sm border border-gray-100 shadow-sm">
                 <div className="flex justify-between items-center mb-6">
                     <h3 className="text-md font-bold text-[#2C3E50]">Priority vs. Effort Analysis</h3>
-                    <button className="text-xs text-[#3498DB] font-bold">Download CSV</button>
                 </div>
                 <div className="h-64">
                   <ResponsiveContainer width="100%" height="100%">
@@ -174,8 +177,7 @@ const Dashboards: React.FC = () => {
               </div>
               <div className="bg-white p-6 rounded-sm border border-gray-100 shadow-sm">
                  <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-md font-bold text-[#2C3E50]">Resource Demand by Org</h3>
-                    <button className="text-xs text-[#3498DB] font-bold">View Details</button>
+                    <h3 className="text-md font-bold text-[#2C3E50]">Resource Demand by Group</h3>
                 </div>
                 <div className="h-64">
                    <ResponsiveContainer width="100%" height="100%">
@@ -189,12 +191,50 @@ const Dashboards: React.FC = () => {
                   </ResponsiveContainer>
                 </div>
               </div>
+              {/* Added Chart 3: Project Status */}
+              <div className="bg-white p-6 rounded-sm border border-gray-100 shadow-sm">
+                 <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-md font-bold text-[#2C3E50]">Overall Project Status</h3>
+                </div>
+                <div className="h-64">
+                   <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={data.projectStatus} innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
+                        <Cell fill="#2ECC71" />
+                        <Cell fill="#3498DB" />
+                        <Cell fill="#E74C3C" />
+                        <Cell fill="#BDC3C7" />
+                      </Pie>
+                      <Legend />
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+              {/* Added Chart 4: Effort vs Impact */}
+              <div className="bg-white p-6 rounded-sm border border-gray-100 shadow-sm">
+                 <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-md font-bold text-[#2C3E50]">Effort vs. Impact Matrix</h3>
+                </div>
+                <div className="h-64">
+                   <ResponsiveContainer width="100%" height="100%">
+                    <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+                      <CartesianGrid />
+                      <XAxis type="number" dataKey="x" name="Effort" unit="%" />
+                      <YAxis type="number" dataKey="y" name="Impact" unit="%" />
+                      <ZAxis type="number" dataKey="z" range={[50, 400]} />
+                      <Tooltip cursor={{ strokeDasharray: '3 3' }} />
+                      <Scatter name="Projects" data={data.effortImpact} fill="#3498DB" />
+                    </ScatterChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
             </div>
             <div className="bg-gray-50 p-4 rounded-sm border-l-4 border-[#2C3E50] mt-6">
                 <h4 className="font-bold text-sm text-[#2C3E50] mb-1">Analyst Insight</h4>
                 <p className="text-xs text-gray-600 leading-relaxed">
-                    A visualization of the IT Service Request landscape managed at UNHCR. 
-                    Requests from DevZone and the BI Team constitute 40% of the total volume. Notably, 50% of Critical projects require XL-sized resources, prompting a strategic recommendation to leadership for resource reallocation and process automation to alleviate bottlenecks.
+                    A visualization of the IT Service Request landscape. 
+                    Requests from Group A and Group B constitute 40% of the total volume. Notably, 50% of Critical projects require XL-sized resources, prompting a strategic recommendation for resource reallocation and process automation to alleviate bottlenecks.
                 </p>
             </div>
           </>
@@ -206,7 +246,7 @@ const Dashboards: React.FC = () => {
         return (
           <>
              {renderControls()}
-             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="lg:col-span-2 bg-white p-6 rounded-sm border border-gray-100 shadow-sm">
                     <h3 className="text-md font-bold text-[#2C3E50] mb-6">Automation Impact (Throughput)</h3>
                     <div className="h-64">
@@ -243,11 +283,26 @@ const Dashboards: React.FC = () => {
                          </ResponsiveContainer>
                     </div>
                 </div>
+                {/* Added Chart 3: Processing Time Dist */}
+                <div className="bg-white p-6 rounded-sm border border-gray-100 shadow-sm">
+                    <h3 className="text-md font-bold text-[#2C3E50] mb-6">Processing Time Distribution</h3>
+                    <div className="h-64">
+                         <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={data.processingDist}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                <XAxis dataKey="bucket" tick={{fontSize: 10}} />
+                                <YAxis />
+                                <Tooltip />
+                                <Bar dataKey="count" fill="#1ABC9C" radius={[4, 4, 0, 0]} />
+                            </BarChart>
+                         </ResponsiveContainer>
+                    </div>
+                </div>
              </div>
              <div className="bg-gray-50 p-4 rounded-sm border-l-4 border-[#2ECC71] mt-6">
                 <h4 className="font-bold text-sm text-[#2C3E50] mb-1">Analyst Insight</h4>
                 <p className="text-xs text-gray-600 leading-relaxed">
-                    Reflecting process improvements at NVIDIA and MinebeaMitsumi.
+                    Reflecting process improvements in operations.
                     The introduction of automation (Green Area) drove a 3.7x (275%) surge in throughput. Simultaneously, the Data Governance Framework maintained data integrity errors below 5%, proving that speed does not have to compromise quality.
                 </p>
             </div>
@@ -278,17 +333,52 @@ const Dashboards: React.FC = () => {
                     </div>
                 </div>
                 <div className="bg-white p-6 rounded-sm border border-gray-100 shadow-sm">
-                    <h3 className="text-md font-bold text-[#2C3E50] mb-6">Donor Segmentation (K-Means)</h3>
+                    <h3 className="text-md font-bold text-[#2C3E50] mb-6">User Segmentation (K-Means)</h3>
                     <div className="h-64">
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
-                                <Pie data={data.segments} outerRadius={80} dataKey="value" label={({name, percent}) => `${name} ${(percent * 100).toFixed(0)}%`}>
+                                <Pie 
+                                    data={data.segments} 
+                                    outerRadius={65} 
+                                    dataKey="value" 
+                                    // Use Legend instead of Label to prevent overflow
+                                >
                                     {data.segments.map((entry: any, index: number) => (
                                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                     ))}
                                 </Pie>
                                 <Tooltip />
+                                <Legend verticalAlign="bottom" height={36} wrapperStyle={{fontSize: '11px'}} />
                             </PieChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+                {/* Added Chart 3: Cohort Retention */}
+                <div className="bg-white p-6 rounded-sm border border-gray-100 shadow-sm">
+                    <h3 className="text-md font-bold text-[#2C3E50] mb-6">Cohort Retention Analysis</h3>
+                    <div className="h-64">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={data.cohorts}>
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis dataKey="month" tick={{fontSize: 10}} />
+                                <YAxis domain={[0, 100]} />
+                                <Tooltip />
+                                <Area type="monotone" dataKey="retention" stroke="#8884d8" fill="#8884d8" fillOpacity={0.3} />
+                            </AreaChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+                 {/* Added Chart 4: LTV by Source */}
+                 <div className="bg-white p-6 rounded-sm border border-gray-100 shadow-sm">
+                    <h3 className="text-md font-bold text-[#2C3E50] mb-6">LTV by Acquisition Source</h3>
+                    <div className="h-64">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={data.ltvSource} layout="vertical">
+                                <XAxis type="number" />
+                                <YAxis dataKey="source" type="category" width={80} tick={{fontSize: 10}} />
+                                <Tooltip />
+                                <Bar dataKey="ltv" fill="#2C3E50" radius={[0, 4, 4, 0]} barSize={20} />
+                            </BarChart>
                         </ResponsiveContainer>
                     </div>
                 </div>
@@ -296,7 +386,7 @@ const Dashboards: React.FC = () => {
              <div className="bg-gray-50 p-4 rounded-sm border-l-4 border-[#E74C3C] mt-6">
                 <h4 className="font-bold text-sm text-[#2C3E50] mb-1">Analyst Insight</h4>
                 <p className="text-xs text-gray-600 leading-relaxed">
-                    Results from Donor Churn Prediction & Segmentation at UNHCR.
+                    Results from Churn Prediction & Segmentation analysis.
                     The Random Forest model's predictions (Blue) accurately tracked actual churn (Red). Targeted marketing campaigns focused on the 'Hibernating' and 'At-Risk' clusters identified via K-Means achieved a 150% ROI, validating the predictive approach.
                 </p>
             </div>
@@ -343,12 +433,44 @@ const Dashboards: React.FC = () => {
                         </ResponsiveContainer>
                     </div>
                 </div>
+                {/* Added Chart 3: Supplier Scorecard */}
+                <div className="bg-white p-6 rounded-sm border border-gray-100 shadow-sm">
+                    <h3 className="text-md font-bold text-[#2C3E50] mb-6">Supplier Performance</h3>
+                    <div className="h-64">
+                        <ResponsiveContainer width="100%" height="100%">
+                             <BarChart data={data.supplierScore}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                <XAxis dataKey="supplier" />
+                                <YAxis domain={[0, 100]} />
+                                <Tooltip />
+                                <Bar dataKey="score" fill="#8E44AD" barSize={30} radius={[4, 4, 0, 0]} />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+                {/* Added Chart 4: Stockout Risk */}
+                <div className="bg-white p-6 rounded-sm border border-gray-100 shadow-sm">
+                    <h3 className="text-md font-bold text-[#2C3E50] mb-6">Stockout Risk vs Safety Stock</h3>
+                    <div className="h-64">
+                        <ResponsiveContainer width="100%" height="100%">
+                             <ComposedChart data={data.stockoutRisk}>
+                                <CartesianGrid stroke="#f5f5f5" />
+                                <XAxis dataKey="week" />
+                                <YAxis />
+                                <Tooltip />
+                                <Legend />
+                                <Area type="monotone" dataKey="risk" fill="#E74C3C" stroke="#E74C3C" fillOpacity={0.3} />
+                                <Line type="step" dataKey="safety" stroke="#27AE60" strokeWidth={2} strokeDasharray="5 5" />
+                            </ComposedChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
              </div>
              <div className="bg-gray-50 p-4 rounded-sm border-l-4 border-[#E67E22] mt-6">
                 <h4 className="font-bold text-sm text-[#2C3E50] mb-1">Analyst Insight</h4>
                 <p className="text-xs text-gray-600 leading-relaxed">
-                    Demand Forecasting & Logistics Optimization dashboard used at LVMH.
-                    By Week 4, the Variance Analysis model narrowed the gap between Forecast (Orange Line) and Actual Stock, reducing excess inventory by 12%. The visualization of EU-KR route delays (Red Bar) was instrumental in prioritizing supply chain process improvements.
+                    Demand Forecasting & Logistics Optimization dashboard.
+                    By Week 4, the Variance Analysis model narrowed the gap between Forecast (Orange Line) and Actual Stock, reducing excess inventory by 12%. The visualization of Route C delays (Red Bar) was instrumental in prioritizing supply chain process improvements.
                 </p>
             </div>
           </>
@@ -399,11 +521,40 @@ const Dashboards: React.FC = () => {
                         </div>
                     </div>
                 </div>
+                {/* Added Chart 3: Channel ROI */}
+                <div className="bg-white p-6 rounded-sm border border-gray-100 shadow-sm">
+                    <h3 className="text-md font-bold text-[#2C3E50] mb-6">ROI by Channel</h3>
+                    <div className="h-64">
+                         <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={data.channelRoi}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                <XAxis dataKey="channel" />
+                                <YAxis />
+                                <Tooltip />
+                                <Bar dataKey="roi" fill="#E67E22" barSize={30} radius={[4, 4, 0, 0]} />
+                            </BarChart>
+                         </ResponsiveContainer>
+                    </div>
+                </div>
+                {/* Added Chart 4: Touchpoints */}
+                <div className="bg-white p-6 rounded-sm border border-gray-100 shadow-sm">
+                    <h3 className="text-md font-bold text-[#2C3E50] mb-6">Customer Journey Touchpoints</h3>
+                    <div className="h-64">
+                         <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={data.touchpoints}>
+                                <XAxis dataKey="step" tick={{fontSize: 10}} />
+                                <YAxis />
+                                <Tooltip />
+                                <Area type="step" dataKey="users" stroke="#3498DB" fill="#3498DB" fillOpacity={0.2} />
+                            </AreaChart>
+                         </ResponsiveContainer>
+                    </div>
+                </div>
              </div>
              <div className="bg-gray-50 p-4 rounded-sm border-l-4 border-[#3498DB] mt-6">
                 <h4 className="font-bold text-sm text-[#2C3E50] mb-1">Analyst Insight</h4>
                 <p className="text-xs text-gray-600 leading-relaxed">
-                    Outcomes from CRO projects at UNHCR and LVMH.
+                    Outcomes from CRO projects.
                     The 'New UI' (Variant B) demonstrated a 0.8%p lift in conversion over Control (Variant A), achieving statistical significance. Improvements in the 'Add to Cart' stage significantly reduced drop-off, leading to a 10% reduction in Customer Acquisition Cost (CAC).
                 </p>
             </div>
@@ -421,18 +572,7 @@ const Dashboards: React.FC = () => {
       <div>
         <SectionHeader title="BI Portfolio Gallery" subtitle="Strategic Visualizations & Operations Monitoring" />
         
-        {/* Data Masking Disclaimer Banner */}
-        <div className="bg-blue-50 border-l-4 border-[#3498DB] p-4 mb-8 -mt-4 rounded-r-sm flex items-start shadow-sm">
-             <svg className="w-5 h-5 text-[#3498DB] mr-3 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-             <div>
-                 <h4 className="text-sm font-bold text-[#2C3E50]">Why Re-created Dashboards?</h4>
-                 <p className="text-xs text-gray-600 mt-1 leading-relaxed">
-                     To strictly adhere to <strong>Non-Disclosure Agreements (NDAs)</strong> with previous employers (NVIDIA, UNHCR, LVMH), I have re-engineered these dashboards from scratch.
-                     <br className="mb-1"/>
-                     While the <strong>data is randomized</strong>, the layout, business logic, and metric selection faithfully represent the production-grade tools I built to drive executive decision-making. This demonstrates my ability to structure complex information without compromising confidentiality.
-                 </p>
-             </div>
-        </div>
+        {/* NDA Disclaimer Removed */}
       </div>
 
       {/* Tabs */}
@@ -463,7 +603,7 @@ const Dashboards: React.FC = () => {
                         <p className="text-gray-400 text-[10px] font-bold uppercase tracking-wider mb-1">{kpi.label}</p>
                         <div className="flex items-end gap-2">
                             <span className="text-2xl font-serif font-bold text-[#2C3E50]">{kpi.value}</span>
-                            <span className={`text-xs font-bold px-1.5 py-0.5 rounded-sm mb-1 ${kpi.isPositive ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                            <span className="text-xs font-bold px-1.5 py-0.5 rounded-sm mb-1" style={{backgroundColor: kpi.isPositive ? '#ECFDF5' : '#FEF2F2', color: kpi.isPositive ? '#047857' : '#B91C1C'}}>
                                 {kpi.change}
                             </span>
                         </div>

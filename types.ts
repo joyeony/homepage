@@ -34,3 +34,20 @@ export interface Metric {
   subtext: string;
   data: { name: string; value: number }[]; // For mini charts
 }
+
+export interface EducationItem {
+  school: string;
+  period: string;
+  degree: string;
+  gpa?: string;
+  description?: string;
+}
+
+export interface CertificationItem {
+  name: string;
+  period?: string;
+  degree?: string;
+  gpa?: string;
+  description?: string;
+  type: 'detailed' | 'simple';
+}

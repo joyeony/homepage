@@ -44,10 +44,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             </div>
 
             {/* Footer inside the paper */}
-            <div className="mt-20 pt-8 border-t-2 border-gray-100 text-center">
-                <p className="text-[#2C3E50] font-serif font-bold text-lg mb-2">Jiyeon Park</p>
+            <div className="mt-20 pt-8 border-t-2 border-gray-100 flex flex-col items-center gap-3">
                 <p className="text-gray-400 text-sm font-medium tracking-wide">
-                    Bridging the gap between Data and Decision Making.
+                    © 2025 Jiyeon Park. All rights reserved.
                 </p>
             </div>
         </div>
